@@ -1,0 +1,8 @@
+{
+  "devDependencies": {
+    "@cetusprotocol/aggregator-sdk": "^0.10.0",
+    "@types/node": "^22.15.19",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3"
+  }
+}
