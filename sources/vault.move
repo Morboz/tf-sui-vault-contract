@@ -199,6 +199,16 @@ fun deposit_non_entry<T>(
     };
 }
 
+public fun query<T>(bm: &mut BalanceManager,): u64 {
+    let coin_type = type_name::into_string(type_name::get_with_original_ids<T>());
+    if (dynamic_field::exists_(&bm.id, coin_type)) {
+        let balance_b = dynamic_field::borrow<String, Balance<T>>(&bm.id, coin_type);
+        balance::value<T>(balance_b)
+    } else {
+        0
+    }
+}
+
 fun check_sr(sr: &SupporterReward) {
     assert!(sr_amount(sr) >= MIN_AMOUNT);
     assert!(sr_name(sr) == TICK.to_ascii_string());
