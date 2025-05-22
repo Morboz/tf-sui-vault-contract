@@ -9,7 +9,8 @@ use sui::{
     table::{Self, Table},
     balance::{Self, Balance},
     vec_set::{Self, VecSet},
-    dynamic_field
+    dynamic_field,
+    event::emit,
 };
 use suifund::{
     suifund::{SupporterReward, sr_amount, sr_name}
@@ -22,6 +23,19 @@ const TICK: vector<u8> = b"TradingFlow";
 
 const ENotWhitelisted: u64 = 1001;
 const EVersionMismatched: u64 = 1002;
+
+// ======== Events =========
+public struct UserDepositEvent has copy, drop {
+    user: address,
+    coin_type: String,
+    amount: u64,
+}
+
+public struct UserWithdrawEvent has copy, drop {
+    user: address,
+    coin_type: String,
+    amount: u64,
+}
 
 public struct AccessList has key {
     id: UID,
@@ -129,7 +143,14 @@ public fun user_deposit<T>(
     assert!(version.version == VERSION, EVersionMismatched);
     assert!(bm.owner == ctx.sender());
     check_sr(sr);
+    let deposit_amount = coin::value(&budget);
     deposit_non_entry<T>(bm, budget);
+
+    emit(UserDepositEvent {
+        user: ctx.sender(),
+        coin_type: type_name::into_string(type_name::get_with_original_ids<T>()),
+        amount: deposit_amount,
+    });
 }
 
 #[allow(lint(self_transfer))]
@@ -144,6 +165,13 @@ public fun user_withdraw<T>(
     assert!(bm.owner == ctx.sender());
     check_sr(sr);
     let coin = withdraw_non_entry<T>(bm, amount, ctx);
+
+    emit(UserWithdrawEvent {
+        user: ctx.sender(),
+        coin_type: type_name::into_string(type_name::get_with_original_ids<T>()),
+        amount: amount,
+    });
+
     transfer::public_transfer(coin, ctx.sender());
 }
 
@@ -220,3 +248,8 @@ public fun update_version(
     version.version == VERSION;
 }
 
+
+#[test_only]
+public fun init_for_testing(ctx: &mut TxContext) {
+    init(ctx);
+}
