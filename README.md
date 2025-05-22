@@ -1,20 +1,22 @@
-# Treasury Smart Contract
+# TradingFlow Vault Contract
 
-Treasury is a Sui Move-based vault contract for secure management of multiple token assets. It supports various token types, whitelist access control, and flexible asset management functions.
+TradingFlow Vault is a Sui Move-based asset management contract providing secure storage and transaction capabilities for multiple token types. It features a unique early supporter recognition system through SupporterReward integration alongside dedicated interfaces for both users and trading bots.
 
 ## Features
 
-- **Multi-token Support**: Create separate vaults for different token types
-- **Access Control**: Admin and whitelist mechanisms ensure asset security
-- **Deposit & Withdrawal**: Secure deposit and withdrawal functions
-- **Cross-token Trading**: Token swaps via Cetus aggregator integration
+- **Multi-token Support**: Store and manage any token type in a single BalanceManager
+- **Tiered Access Control**: Different capabilities for admins, bots, users, and early supporters
+- **SupporterReward Integration**: Special privileges for early project backers
+- **Slippage Protection**: Minimum deposit safeguards for bot operations
+- **Version Control**: Contract versioning for safe upgrades
 
 ## Contract Structure
 
-- **TreasuryConfig**: Vault configuration containing admin address and whitelist table
-- **Treasury\<T\>**: Generic vault that can store any token type
-- **Permission Functions**: Whitelist and admin authority management
-- **Asset Operations**: Functions for deposits, withdrawals, and swaps
+- **BalanceManager**: Core component managing multi-token balances for each user
+- **AccessList**: Controls which bot addresses can perform automated operations
+- **Record**: Tracks owner-to-BalanceManager mappings
+- **AdminCap**: Administrative capability for privileged operations
+- **Version**: Manages contract versioning for future upgrades
 
 ## Build & Deployment
 
@@ -47,134 +49,139 @@ sui move build
 sui client publish --gas-budget 100000000
 ```
 
-After successful deployment, note the returned package ID and created object IDs.
+After successful deployment, note the returned package ID and created object IDs for Record, AccessList, and Version.
 
 ## CLI Usage Guide
 
-### 1. Create SUI Token Treasury
+### 1. Add Bot to Access Control List
 
 ```bash
 sui client call \
   --package <PACKAGE_ID> \
-  --module treasury \
-  --function create_and_share_treasury \
+  --module vault \
+  --function acl_add \
+  --args <ADMIN_CAP_ID> <ACCESS_LIST_ID> <BOT_ADDRESS> \
+  --gas-budget 10000000
+```
+
+### 2. Remove Bot from Access Control List
+
+```bash
+sui client call \
+  --package <PACKAGE_ID> \
+  --module vault \
+  --function acl_remove \
+  --args <ADMIN_CAP_ID> <ACCESS_LIST_ID> <BOT_ADDRESS> \
+  --gas-budget 10000000
+```
+
+### 3. Create Balance Manager (Requires SupporterReward)
+
+```bash
+sui client call \
+  --package <PACKAGE_ID> \
+  --module vault \
+  --function create_balance_manager \
+  --args <RECORD_ID> <SUPPORTER_REWARD_ID> <VERSION_ID> \
+  --gas-budget 10000000
+```
+
+### 4. User Deposit (With SupporterReward)
+
+```bash
+sui client call \
+  --package <PACKAGE_ID> \
+  --module vault \
+  --function user_deposit \
   --type-args "0x2::sui::SUI" \
+  --args <BALANCE_MANAGER_ID> <COIN_OBJECT_ID> <SUPPORTER_REWARD_ID> <VERSION_ID> \
   --gas-budget 10000000
 ```
 
-### 2. Create Other Token Treasury (e.g. CETUS)
+### 5. User Withdraw (With SupporterReward)
 
 ```bash
 sui client call \
   --package <PACKAGE_ID> \
-  --module treasury \
-  --function create_and_share_treasury \
-  --type-args "0x06864a6f921804860930db6ddbe2e16acdf8504495ea7481637a1c8b9a8fe54b::cetus::CETUS" \
-  --gas-budget 10000000
-```
-
-### 3. Add Address to Whitelist
-
-```bash
-sui client call \
-  --package <PACKAGE_ID> \
-  --module treasury \
-  --function add_to_whitelist \
-  --args <TREASURY_CONFIG_ID> <ADDRESS_TO_WHITELIST> \
-  --gas-budget 10000000
-```
-
-### 4. Remove Address from Whitelist
-
-```bash
-sui client call \
-  --package <PACKAGE_ID> \
-  --module treasury \
-  --function remove_from_whitelist \
-  --args <TREASURY_CONFIG_ID> <ADDRESS_TO_REMOVE> \
-  --gas-budget 10000000
-```
-
-### 5. Deposit Tokens
-
-```bash
-sui client call \
-  --package <PACKAGE_ID> \
-  --module treasury \
-  --function deposit \
+  --module vault \
+  --function user_withdraw \
   --type-args "0x2::sui::SUI" \
-  --args <TREASURY_ID> <COIN_OBJECT_ID> \
+  --args <BALANCE_MANAGER_ID> <AMOUNT> <SUPPORTER_REWARD_ID> <VERSION_ID> \
   --gas-budget 10000000
 ```
 
-### 6. Withdraw Tokens
+### 6. Bot Deposit (Requires Access List)
 
 ```bash
 sui client call \
   --package <PACKAGE_ID> \
-  --module treasury \
-  --function withdraw \
+  --module vault \
+  --function bot_deposit \
   --type-args "0x2::sui::SUI" \
-  --args <TREASURY_CONFIG_ID> <TREASURY_ID> <AMOUNT> \
+  --args <ACCESS_LIST_ID> <BALANCE_MANAGER_ID> <COIN_OBJECT_ID> <MIN_AMOUNT> \
   --gas-budget 10000000
 ```
 
-### 7. Transfer Admin Rights
+### 7. Bot Withdraw (Requires Access List)
 
 ```bash
 sui client call \
   --package <PACKAGE_ID> \
-  --module treasury \
-  --function transfer_admin \
-  --args <TREASURY_CONFIG_ID> <NEW_ADMIN_ADDRESS> \
+  --module vault \
+  --function bot_withdraw \
+  --type-args "0x2::sui::SUI" \
+  --args <ACCESS_LIST_ID> <BALANCE_MANAGER_ID> <AMOUNT> \
   --gas-budget 10000000
 ```
 
-### 8. Query Treasury Balance
+### 8. Query Balance
 
 ```bash
-sui client object <TREASURY_ID> --json | grep -A 5 balance
+sui client call \
+  --package <PACKAGE_ID> \
+  --module vault \
+  --function query \
+  --type-args "0x2::sui::SUI" \
+  --args <BALANCE_MANAGER_ID> \
+  --gas-budget 10000000
 ```
 
-## TypeScript Script Usage
+## SupporterReward Integration
 
-The project provides several TypeScript scripts for complex operations:
+This contract integrates with the SupporterReward system to provide early backers with special privileges:
 
-### Deposit Operation
+1. **Requirements**:
+   - SupporterReward must have a minimum amount of 1000 tokens
+   - Project name must be "TradingFlow"
 
-```bash
-npx ts-node src/scripts/deposit.ts
-```
+2. **Verification**:
+   - All user operations require a valid SupporterReward
+   - SupporterReward is checked before any balance operations
 
-### Token Swap Operation
+3. **Benefits**:
+   - Create personal BalanceManager
+   - Direct deposit and withdrawal access
+   - Future premium features
 
-```bash
-npx ts-node src/scripts/swap.ts
-```
+## Understanding User vs Bot Operations
 
-### Balance Query
+The contract offers two distinct interfaces:
 
-```bash
-npx ts-node src/scripts/check-balance.ts
-```
+### User Operations
+- Require ownership of the BalanceManager
+- Require valid SupporterReward verification
+- Funds are automatically transferred to the user
 
-### View Whitelist
-
-```bash
-npx ts-node src/scripts/check-whitelist.ts
-```
+### Bot Operations
+- Require the calling address to be in AccessList
+- Include slippage protection with minimum amount check
+- Return Coin objects directly instead of transferring
+- Designed for automated trading strategies
 
 ## Important Notes
 
-1. Each token type requires a separate treasury instance
-2. Only admin and whitelisted addresses can withdraw tokens
-3. Anyone can deposit tokens into the treasury
-4. Private key information is sensitive and should be stored as environment variables
-5. Set an appropriate gas budget before each operation
-
-## Security Tips
-
-- Never hardcode private keys in your code
-- Test with small amounts before transferring large assets
-- Regularly check whitelist status to ensure security
-- Consider using multisig or timelock mechanisms for enhanced asset security
+1. Each user can create their own BalanceManager after proving early support
+2. BalanceManager stores multiple token types using dynamic fields
+3. Bot addresses must be added to the AccessList by an admin
+4. The contract uses versioning to support future upgrades
+5. When a user withdraws the exact available balance, the field is removed
